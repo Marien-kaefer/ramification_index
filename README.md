@@ -1,2 +1,3 @@
 # ramification_index
-Calculate ramification index of objects in segmentation mask
+
+The starting point is a generated segmentation mask. Once the binary mask has been generated/opened, select it and hit [Run] at the bottom of the script editor. 
