@@ -50,7 +50,6 @@ for (i = 0; i < ROI_count; i++) {
 	projection_area[i] = getResult("Area", 1);
 	run("Clear Results");
 	ramification_index[i] = cell_area[i] / projection_area[i]; 
-	//print(i); 
 }
 
 //write results into a new results window 
@@ -67,7 +66,7 @@ saveAs("Results", direcory_path + File.separator + originalTitleWithoutExtension
 //clean up: close results window, reset ROI Manager, close image window
 run("Close");
 roiManager("reset");
-//close("*"); 
+close("*"); 
 
 //let user know the process has finished
 print("Processing of [" + originalTitle + "] finished.");
