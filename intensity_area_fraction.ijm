@@ -18,7 +18,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 */
 
-#@ String (label = "Channel to process", value = 2, persist=true) ChannelNumber
+#@ String (label = "Channel to process", value = 2, persist=true) channelNumber
 #@ String (label = "Minimum object size (micron^2)", value = 2, persist=true) minObjectSize
 
 
@@ -28,92 +28,105 @@ originalTitle = getTitle(); //get image title
 originalTitleWithoutExtension = file_name_remove_extension(originalTitle); //remove extension from image title
 direcory_path = getDirectory("image");	//get directory path of image and use that later as direcoty for output files
 
-
-
-setSlice(ChannelNumber);
-run("Duplicate...", " ");
-duplicateTitle = getTitle();
-run("Top Hat...", "radius=5");
-setAutoThreshold("Li dark no-reset");
-setOption("BlackBackground", true);
-run("Convert to Mask");
-run("Analyze Particles...", "size=" + minObjectSize + "-Infinity clear summarize add");
-//save ROI set for future reference and accountability purposes
-roiManager("Save", direcory_path + File.separator + originalTitleWithoutExtension + "-area-fraction-ROISet.zip");
-selectWindow("Summary");
-saveAs("Results", direcory_path + File.separator + originalTitleWithoutExtension + "-Summary_results.csv");
-close(originalTitleWithoutExtension + "-Summary_results.csv");
-roiManager("reset");
-
-
-selectWindow(duplicateTitle);
-run("Analyze Particles...", "size=" + minObjectSize + "-Infinity exclude clear add");
-//save ROI set for future reference and accountability purposes
-roiManager("Save", direcory_path + File.separator + originalTitleWithoutExtension + "-intensity-ROISet.zip");
-
-
-selectWindow(originalTitle);
-setSlice(ChannelNumber);
-run("Set Measurements...", "area mean standard modal min integrated median display redirect=None decimal=3");
-roiManager("multi-measure");
-
-saveAs("Results", direcory_path + File.separator + originalTitleWithoutExtension + "-Measurement_results.csv");
-roiManager("reset");
-
-
-
-
-// connected component analysis, i.e. identify objects and assign unique identifiers
-selectWindow(duplicateTitle);
-run("Analyze Particles...", "size=" + minObjectSize + "-Infinity display exclude summarize add");  //apply appropriate minimum size filter in µm^2
-
-//save ROI set for future reference and accountability purposes
-roiManager("Save", direcory_path + File.separator + originalTitleWithoutExtension + "-ROISet.zip");
-//specify which parameters to measure
-run("Set Measurements...", "area redirect=None decimal=3");
-
-// count number of ROIs and specify length of result lists
-ROI_count = roiManager("count");
-//print("number of ROIs: " + ROI_count); 
-cell_area = newArray(ROI_count);
-projection_area = newArray(ROI_count);
-ramification_index = newArray(ROI_count);
-
-// loop through each ROI and measure the area then generate and measure the area of the convex hull, calculate the ramification index as cell area divided by convex hull area
-for (i = 0; i < ROI_count; i++) {
-	roiManager("Select", i);
-	run("Measure");
-	cell_area[i] = getResult("Area", 0);
-	run("Convex Hull");
-	run("Measure");
-	projection_area[i] = getResult("Area", 1);
-	run("Clear Results");
-	ramification_index[i] = cell_area[i] / projection_area[i]; 
-}
-
-//write results into a new results window 
-for (i = 0; i < ROI_count; i++) {
-	setResult("Object Area", i, cell_area[i]);
-	setResult("Object Projection Area", i, projection_area[i]);
-	setResult("Ramification Index", i, ramification_index[i]);  
-}
-
-// save results with file name including original file name
-selectWindow("Results");
-saveAs("Results", direcory_path + File.separator + originalTitleWithoutExtension + "-Ramification_results.csv");
-
-
-//clean up: close results window, reset ROI Manager, close image window
-run("Close");
-roiManager("reset");
-close("*"); 
-
+duplicateTitle = pre_processing(originalTitle, channelNumber); 
+area_fraction(direcory_path, originalTitleWithoutExtension, duplicateTitle, minObjectSize);
+intensity_measurements(direcory_path, originalTitleWithoutExtension, duplicateTitle, channelNumber);
+ramification_index_calculation(direcory_path, originalTitleWithoutExtension, duplicateTitle, minObjectSize); 
+clean_up();
 
 //let user know the process has finished
 print("Processing of [" + originalTitle + "] finished.");
 beep();
 
 
+
+function pre_processing(originalTitle, channelNumber){
+	selectWindow(originalTitle); 
+	setSlice(channelNumber);
+	run("Duplicate...", " ");
+	duplicateTitle = getTitle();
+	run("Top Hat...", "radius=5");
+	setAutoThreshold("Li dark no-reset");
+	setOption("BlackBackground", true);
+	run("Convert to Mask");
+	saveAs("TIFF", direcory_path + File.separator + originalTitleWithoutExtension + "-mask.tif");
+	rename(duplicateTitle); 
+	return duplicateTitle;
+}
+
+function area_fraction(direcory_path, originalTitleWithoutExtension, duplicateTitle, minObjectSize){
+	selectWindow(duplicateTitle);
+	run("Analyze Particles...", "size=" + minObjectSize + "-Infinity clear summarize add");
+	//save ROI set for future reference and accountability purposes
+	roiManager("Save", direcory_path + File.separator + originalTitleWithoutExtension + "-area-fraction-intensity-ROISet.zip");
+	selectWindow("Summary");
+	saveAs("Results", direcory_path + File.separator + originalTitleWithoutExtension + "-Summary_results.csv");
+	close(originalTitleWithoutExtension + "-Summary_results.csv");
+}
+
+function intensity_measurements(direcory_path, originalTitleWithoutExtension, duplicateTitle, channelNumber){
+
+	selectWindow(originalTitle);
+	setSlice(channelNumber);
+	run("Set Measurements...", "area mean standard modal min integrated median display redirect=None decimal=3");
+	roiManager("multi-measure");
+	saveAs("Results", direcory_path + File.separator + originalTitleWithoutExtension + "-Measurement_results.csv");
+	roiManager("Deselect");
+	roiManager("reset");
+	run("Clear Results");
+}
+
+function ramification_index_calculation(direcory_path, originalTitleWithoutExtension, duplicateTitle, minObjectSize){
+	// connected component analysis, i.e. identify objects and assign unique identifiers
+	selectWindow(duplicateTitle);
+	run("Analyze Particles...", "size=" + minObjectSize + "-Infinity exclude add");  //apply appropriate minimum size filter in µm^2
+	
+	//save ROI set for future reference and accountability purposes
+	roiManager("Save", direcory_path + File.separator + originalTitleWithoutExtension + "-ROISet.zip");
+	//specify which parameters to measure
+	run("Set Measurements...", "area redirect=None decimal=3");
+	
+	// count number of ROIs and specify length of result lists
+	ROI_count = roiManager("count");
+	//print("number of ROIs: " + ROI_count); 
+	cell_area = newArray(ROI_count);
+	projection_area = newArray(ROI_count);
+	ramification_index = newArray(ROI_count);
+	
+	// loop through each ROI and measure the area then generate and measure the area of the convex hull, calculate the ramification index as cell area divided by convex hull area
+	for (i = 0; i < ROI_count; i++) {
+		roiManager("Select", i);
+		run("Measure");
+		cell_area[i] = getResult("Area", 0);
+		roiManager("Select", i);
+		run("Convex Hull");
+		run("Measure");
+		projection_area[i] = getResult("Area", 1);
+		run("Clear Results");
+		ramification_index[i] = cell_area[i] / projection_area[i]; 
+	}
+	
+	//write results into a new results window 
+	for (i = 0; i < ROI_count; i++) {
+		setResult("Object Area", i, cell_area[i]);
+		setResult("Object Projection Area", i, projection_area[i]);
+		setResult("Ramification Index", i, ramification_index[i]);  
+	}
+	
+	// save results with file name including original file name
+	selectWindow("Results");
+	saveAs("Results", direcory_path + File.separator + originalTitleWithoutExtension + "-Ramification_results.csv");
+	roiManager("reset");
+	roiManager("Deselect");
+
+}
+
+function clean_up(){
+	//clean up: close results window, reset ROI Manager, close image window
+	run("Close");
+	roiManager("reset");
+	close("*"); 
+}
 
 function file_name_remove_extension(originalTitle){
 	dotIndex = lastIndexOf(originalTitle, "." ); 
