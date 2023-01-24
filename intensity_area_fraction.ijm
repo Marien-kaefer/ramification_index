@@ -1,5 +1,5 @@
 /*
-Macro to identify fluorescently labelled objects within a tissue and measure intensity parameters and area fraction.
+Macro to identify fluorescently labelled objects within a tissue and measure intensity parameters and area fraction and ramification index of objects.
 
 												- Written by Marie Held [mheldb@liverpool.ac.uk] January 2023
 												  Liverpool CCI (https://cci.liverpool.ac.uk/)
@@ -18,6 +18,10 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 */
 
+#@ String (label = "Channel to process", value = 2, persist=true) ChannelNumber
+#@ String (label = "Minimum object size (micron^2)", value = 2, persist=true) minObjectSize
+
+
 
 // once the binary mask of a segmented image has been generated/opened, select it and hit [Run] at the bottom of the script editor. 
 originalTitle = getTitle(); //get image title
@@ -26,14 +30,14 @@ direcory_path = getDirectory("image");	//get directory path of image and use tha
 
 
 
-setSlice(2);
+setSlice(ChannelNumber);
 run("Duplicate...", " ");
 duplicateTitle = getTitle();
-run("Median...", "radius=1");
-setAutoThreshold("RenyiEntropy dark no-reset");
+run("Top Hat...", "radius=5");
+setAutoThreshold("Li dark no-reset");
 setOption("BlackBackground", true);
 run("Convert to Mask");
-run("Analyze Particles...", "size=0-Infinity clear summarize add");
+run("Analyze Particles...", "size=" + minObjectSize + "-Infinity clear summarize add");
 //save ROI set for future reference and accountability purposes
 roiManager("Save", direcory_path + File.separator + originalTitleWithoutExtension + "-area-fraction-ROISet.zip");
 selectWindow("Summary");
@@ -43,24 +47,25 @@ roiManager("reset");
 
 
 selectWindow(duplicateTitle);
-run("Analyze Particles...", "size=0-Infinity exclude clear add");
+run("Analyze Particles...", "size=" + minObjectSize + "-Infinity exclude clear add");
 //save ROI set for future reference and accountability purposes
 roiManager("Save", direcory_path + File.separator + originalTitleWithoutExtension + "-intensity-ROISet.zip");
 
 
 selectWindow(originalTitle);
-setSlice(2);
+setSlice(ChannelNumber);
 run("Set Measurements...", "area mean standard modal min integrated median display redirect=None decimal=3");
 roiManager("multi-measure");
 
 saveAs("Results", direcory_path + File.separator + originalTitleWithoutExtension + "-Measurement_results.csv");
+roiManager("reset");
 
 
 
 
-/*
 // connected component analysis, i.e. identify objects and assign unique identifiers
-run("Analyze Particles...", "size=2-Infinity display exclude summarize add");  //apply appropriate minimum size filter in µm^2
+selectWindow(duplicateTitle);
+run("Analyze Particles...", "size=" + minObjectSize + "-Infinity display exclude summarize add");  //apply appropriate minimum size filter in µm^2
 
 //save ROI set for future reference and accountability purposes
 roiManager("Save", direcory_path + File.separator + originalTitleWithoutExtension + "-ROISet.zip");
@@ -97,12 +102,13 @@ for (i = 0; i < ROI_count; i++) {
 selectWindow("Results");
 saveAs("Results", direcory_path + File.separator + originalTitleWithoutExtension + "-Ramification_results.csv");
 
+
 //clean up: close results window, reset ROI Manager, close image window
 run("Close");
 roiManager("reset");
 close("*"); 
 
-*/
+
 //let user know the process has finished
 print("Processing of [" + originalTitle + "] finished.");
 beep();
