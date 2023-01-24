@@ -26,7 +26,7 @@ originalTitleWithoutExtension = file_name_remove_extension(originalTitle); //rem
 direcory_path = getDirectory("image");	//get directory path of image and use that later as direcoty for output files
 
 // connected component analysis, i.e. identify objects and assign unique identifiers
-run("Analyze Particles...", "exclude add");
+run("Analyze Particles...", "size=2-Infinity display exclude summarize add");  //apply appropriate minimum size filter in µm^2
 
 //save ROI set for future reference and accountability purposes
 roiManager("Save", direcory_path + File.separator + originalTitleWithoutExtension + "-ROISet.zip");
@@ -54,8 +54,8 @@ for (i = 0; i < ROI_count; i++) {
 
 //write results into a new results window 
 for (i = 0; i < ROI_count; i++) {
-	setResult("Cell Area", i, cell_area[i]);
-	setResult("Projection Area", i, projection_area[i]);
+	setResult("Object Area", i, cell_area[i]);
+	setResult("Object Projection Area", i, projection_area[i]);
 	setResult("Ramification Index", i, ramification_index[i]);  
 }
 
