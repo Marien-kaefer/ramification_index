@@ -1,5 +1,5 @@
 /*
-Macro to identify fluorescently labelled objects within a tissue and measure intensity parameters and area fraction and ramification index of objects.
+Macro to identify fluorescently labelled objects within a tissue and measure intensity parameters, area fraction and ramification index of objects.
 
 												- Written by Marie Held [mheldb@liverpool.ac.uk] January 2023
 												  Liverpool CCI (https://cci.liverpool.ac.uk/)
@@ -33,7 +33,7 @@ ramification_index_calculation(direcory_path, originalTitleWithoutExtension, dup
 clean_up();
 
 //let user know the process has finished
-print("Processing of [" + originalTitle + "] finished.");
+print("Processing of [" + originalTitle + "] complete.");
 beep();
 
 function pre_processing(originalTitle, channelNumber){
@@ -54,7 +54,7 @@ function pre_processing(originalTitle, channelNumber){
 	mask_title = getTitle();
 	saveAs("TIFF", direcory_path + File.separator + originalTitleWithoutExtension + "-mask.tif");
 	rename(mask_title); 
-	print("finished preprocesing");
+	print("Finished preprocesing");
 	return mask_title;
 }
 
@@ -66,12 +66,13 @@ function area_fraction(direcory_path, originalTitleWithoutExtension, duplicateTi
 	selectWindow("Summary");
 	saveAs("Results", direcory_path + File.separator + originalTitleWithoutExtension + "-Summary_results.csv");
 	close(originalTitleWithoutExtension + "-Summary_results.csv");
-	print("finidhed area fraction"); 
+	print("Finidhed area fraction"); 
 }
 
 function intensity_measurements(direcory_path, originalTitleWithoutExtension, duplicateTitle, channelNumber){
 
 	selectWindow(originalTitle);
+	run("Z Project...", "projection=[Sum Slices]");
 	setSlice(channelNumber);
 	run("Set Measurements...", "area mean standard modal min integrated median display redirect=None decimal=3");
 	roiManager("multi-measure");
@@ -124,7 +125,7 @@ function ramification_index_calculation(direcory_path, originalTitleWithoutExten
 	saveAs("Results", direcory_path + File.separator + originalTitleWithoutExtension + "-Ramification_results.csv");
 	roiManager("reset");
 	roiManager("Deselect");
-	print("finished ramification index calculation");
+	print("Finished ramification index calculation");
 }
 
 function clean_up(){
