@@ -7,8 +7,6 @@ ________________________________________________________________________________
 
 BSD 2-Clause License
 
-Copyright (c) [2022], [Marie Held {mheldb@liverpool.ac.uk}, Image Analyst Liverpool CCI (https://cci.liverpool.ac.uk/)]
-
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
 
 1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
@@ -19,8 +17,8 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 */
 
 #@ String (label = "Channel to process", value = 2, persist=true) channelNumber
-#@ String (label = "Minimum object size (micron^2)", value = 2, persist=true) minObjectSize
-
+#@ String (label = "Minimum cell size (micron^2) for ramification index calculation", value = 35, persist=true) minCellSize
+#@ String (label = "Minimum object size (micron^2) for intensity and area fraction measurement", value = 2, persist=true) minObjectSize
 
 
 // once the binary mask of a segmented image has been generated/opened, select it and hit [Run] at the bottom of the script editor. 
@@ -38,30 +36,37 @@ clean_up();
 print("Processing of [" + originalTitle + "] finished.");
 beep();
 
-
-
 function pre_processing(originalTitle, channelNumber){
 	selectWindow(originalTitle); 
+	run("Z Project...", "projection=[Max Intensity]");
 	setSlice(channelNumber);
 	run("Duplicate...", " ");
+	run("Grays");
 	duplicateTitle = getTitle();
-	run("Top Hat...", "radius=5");
+	
+	// https://imagej.net/plugins/clahe
+	//run("Enhance Local Contrast (CLAHE)", "blocksize=60 histogram=30 maximum=3 mask=*None* fast_(less_accurate)");
+	run("Enhance Local Contrast (CLAHE)", "blocksize=90 histogram=127 maximum=3 mask=*None*");
+		
 	setAutoThreshold("Li dark no-reset");
 	setOption("BlackBackground", true);
 	run("Convert to Mask");
+	mask_title = getTitle();
 	saveAs("TIFF", direcory_path + File.separator + originalTitleWithoutExtension + "-mask.tif");
-	rename(duplicateTitle); 
-	return duplicateTitle;
+	rename(mask_title); 
+	print("finished preprocesing");
+	return mask_title;
 }
 
 function area_fraction(direcory_path, originalTitleWithoutExtension, duplicateTitle, minObjectSize){
 	selectWindow(duplicateTitle);
-	run("Analyze Particles...", "size=0-Infinity clear summarize add");
+	run("Analyze Particles...", "size=" + minObjectSize + "-Infinity clear summarize add");
 	//save ROI set for future reference and accountability purposes
 	roiManager("Save", direcory_path + File.separator + originalTitleWithoutExtension + "-area-fraction-intensity-ROISet.zip");
 	selectWindow("Summary");
 	saveAs("Results", direcory_path + File.separator + originalTitleWithoutExtension + "-Summary_results.csv");
 	close(originalTitleWithoutExtension + "-Summary_results.csv");
+	print("finidhed area fraction"); 
 }
 
 function intensity_measurements(direcory_path, originalTitleWithoutExtension, duplicateTitle, channelNumber){
@@ -74,15 +79,16 @@ function intensity_measurements(direcory_path, originalTitleWithoutExtension, du
 	roiManager("Deselect");
 	roiManager("reset");
 	run("Clear Results");
+	print("Finished intensity measurements.");
 }
 
 function ramification_index_calculation(direcory_path, originalTitleWithoutExtension, duplicateTitle, minObjectSize){
 	// connected component analysis, i.e. identify objects and assign unique identifiers
 	selectWindow(duplicateTitle);
-	run("Analyze Particles...", "size=" + minObjectSize + "-Infinity exclude add");  //apply appropriate minimum size filter in µm^2
+	run("Analyze Particles...", "size=" + minCellSize + "-Infinity exclude add");  //apply appropriate minimum size filter in µm^2
 	
 	//save ROI set for future reference and accountability purposes
-	roiManager("Save", direcory_path + File.separator + originalTitleWithoutExtension + "-ROISet.zip");
+	roiManager("Save", direcory_path + File.separator + originalTitleWithoutExtension + "-cell-ROIs.zip");
 	//specify which parameters to measure
 	run("Set Measurements...", "area redirect=None decimal=3");
 	
@@ -118,7 +124,7 @@ function ramification_index_calculation(direcory_path, originalTitleWithoutExten
 	saveAs("Results", direcory_path + File.separator + originalTitleWithoutExtension + "-Ramification_results.csv");
 	roiManager("reset");
 	roiManager("Deselect");
-
+	print("finished ramification index calculation");
 }
 
 function clean_up(){
