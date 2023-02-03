@@ -60,7 +60,7 @@ function pre_processing(originalTitle, channelNumber){
 
 function area_fraction(direcory_path, originalTitleWithoutExtension, duplicateTitle, minObjectSize){
 	selectWindow(duplicateTitle);
-	run("Analyze Particles...", "size=" + minObjectSize + "-Infinity clear summarize add");
+	run("Analyze Particles...", "size=" + minObjectSize + "-Infinity clear display summarize add");
 	//save ROI set for future reference and accountability purposes
 	roiManager("Save", direcory_path + File.separator + originalTitleWithoutExtension + "-area-fraction-intensity-ROISet.zip");
 	selectWindow("Summary");
@@ -72,6 +72,7 @@ function area_fraction(direcory_path, originalTitleWithoutExtension, duplicateTi
 function intensity_measurements(direcory_path, originalTitleWithoutExtension, duplicateTitle, channelNumber){
 
 	selectWindow(originalTitle);
+	run("Subtract Background...", "rolling=5 stack");
 	run("Z Project...", "projection=[Sum Slices]");
 	setSlice(channelNumber);
 	run("Set Measurements...", "area mean standard modal min integrated median display redirect=None decimal=3");
@@ -86,7 +87,7 @@ function intensity_measurements(direcory_path, originalTitleWithoutExtension, du
 function ramification_index_calculation(direcory_path, originalTitleWithoutExtension, duplicateTitle, minObjectSize){
 	// connected component analysis, i.e. identify objects and assign unique identifiers
 	selectWindow(duplicateTitle);
-	run("Analyze Particles...", "size=" + minCellSize + "-Infinity exclude add");  //apply appropriate minimum size filter in µm^2
+	run("Analyze Particles...", "size=" + minCellSize + "-Infinity exclude display add");  //apply appropriate minimum size filter in µm^2
 	
 	//save ROI set for future reference and accountability purposes
 	roiManager("Save", direcory_path + File.separator + originalTitleWithoutExtension + "-cell-ROIs.zip");
