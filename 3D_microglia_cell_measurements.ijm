@@ -17,31 +17,25 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 */
 
 #@ String (label = "Channel to process", value = 2, persist=true) channelNumber
-#@ String (label = "Minimum cell size (micron^3) for ramification index calculation", value = 250, persist=true) minCellSize
+#@ String (label = "Minimum cell size (micron^3) for ramification index calculation", value = 750, persist=true) minCellSize
 #@ String (label = "Minimum object size (micron^3) for intensity and area fraction measurement", value = 100, persist=true) minObjectSize
 
 start = getTime(); 
-
-// CLAHE parameters
-blocksize = 90; //127
-histogram_bins = 127;  //256
-maximum_slope = 3;
-mask = "*None*";
-fast = true;
-process_as_composite = true;
 
 
 // once the binary mask of a segmented image has been generated/opened, select it and hit [Run] at the bottom of the script editor. 
 originalTitle = getTitle(); //get image title
 getDimensions(width, height, channels, slices, frames);
 originalTitleWithoutExtension = file_name_remove_extension(originalTitle); //remove extension from image title
-direcory_path = getDirectory("image");	//get directory path of image and use that later as direcoty for output files
+directory_path = getDirectory("image");	//get directory path of image and use that later as direcoty for output files
 print(TimeStamp() + ": Processing file " + originalTitleWithoutExtension + " located in " + directory_path ); 
+labelled_mask = "labelled mask"; 
 
-duplicateTitle = pre_processing(originalTitle, channelNumber, slices); 
-//area_fraction(direcory_path, originalTitleWithoutExtension, duplicateTitle, minObjectSize);
-//intensity_measurements(direcory_path, originalTitleWithoutExtension, duplicateTitle, channelNumber);
-ramification_index_calculation(direcory_path, originalTitleWithoutExtension, duplicateTitle, minObjectSize, minCellSize); 
+duplicateTitle = pre_processing(originalTitle, channelNumber, slices, directory_path, originalTitleWithoutExtension); 
+//area_fraction(directory_path, originalTitleWithoutExtension, duplicateTitle, minObjectSize);
+//intensity_measurements(directory_path, originalTitleWithoutExtension, duplicateTitle, channelNumber);
+ramification_index_calculation(directory_path, originalTitleWithoutExtension, duplicateTitle, minObjectSize, minCellSize); 
+visualisation(labelled_mask, originalTitleWithoutExtension, directory_path);
 //clean_up();
 
 //let user know the process has finished
@@ -52,7 +46,7 @@ print("The file processing took " + duration_conversion(duration));
 print(TimeStamp() + ": Processing of [" + originalTitle + "] complete.");
 beep();
 
-function pre_processing(originalTitle, channelNumber, slices){
+function pre_processing(originalTitle, channelNumber, slices, directory_path, originalTitleWithoutExtension){
 	selectWindow(originalTitle); 
 	//run("Z Project...", "projection=[Max Intensity]");
 	setSlice(channelNumber);
@@ -61,20 +55,27 @@ function pre_processing(originalTitle, channelNumber, slices){
 	duplicateTitle = getTitle();
 	
 	// https://imagej.net/plugins/clahe
+	// CLAHE parameters
+	blocksize = 90; //127
+	histogram_bins = 127;  //256
+	maximum_slope = 3;
+	mask = "*None*";
+	fast = true;
+	process_as_composite = true;
 	CLAHE_contrast_enhancement(blocksize, histogram_bins, maximum_slope, mask, fast, process_as_composite);
 	//run("Enhance Local Contrast (CLAHE)", "blocksize=90 histogram=127 maximum=3 mask=*None*");
 	
-
+	run("Median...", "radius=1 stack");
 	setSlice(slices/2); 
 	//run("Threshold...");
-	setAutoThreshold("Otsu dark no-reset");
+	setAutoThreshold("Li dark no-reset");
 	setOption("BlackBackground", true);
 	run("Convert to Mask", "method=Li background=Dark black create");
-	run("Erode", "stack");
+	//run("Erode", "stack");
 	mask_title = getTitle();
-	saveAs("TIFF", direcory_path + File.separator + originalTitleWithoutExtension + "-mask.tif");
+	saveAs("TIFF", directory_path + File.separator + originalTitleWithoutExtension + "-mask.tif");
 	rename(mask_title); 
-	print("Finished preprocesing");
+	print("Finished preprocesing and saved " + directory_path + File.separator + originalTitleWithoutExtension + "-mask.tif");
 	return mask_title;
 }
 
@@ -114,19 +115,19 @@ function CLAHE_contrast_enhancement(blocksize, histogram_bins, maximum_slope, ma
 }
 
 
-function area_fraction(direcory_path, originalTitleWithoutExtension, duplicateTitle, minObjectSize){
+function area_fraction(directory_path, originalTitleWithoutExtension, duplicateTitle, minObjectSize){
 	print("Area fraction measurement");
 	selectWindow(duplicateTitle);
 	run("Analyze Particles...", "size=" + minObjectSize + "-Infinity clear display summarize add");
 	//save ROI set for future reference and accountability purposes
-	roiManager("Save", direcory_path + File.separator + originalTitleWithoutExtension + "-area-fraction-intensity-ROISet.zip");
+	roiManager("Save", directory_path + File.separator + originalTitleWithoutExtension + "-area-fraction-intensity-ROISet.zip");
 	selectWindow("Summary");
-	saveAs("Results", direcory_path + File.separator + originalTitleWithoutExtension + "-Summary_results.csv");
+	saveAs("Results", directory_path + File.separator + originalTitleWithoutExtension + "-Summary_results.csv");
 	close(originalTitleWithoutExtension + "-Summary_results.csv");
 	print("Finished area fraction"); 
 }
 
-function intensity_measurements(direcory_path, originalTitleWithoutExtension, duplicateTitle, channelNumber){
+function intensity_measurements(directory_path, originalTitleWithoutExtension, duplicateTitle, channelNumber){
 	print("Area fraction measurement");
 	selectWindow(originalTitle);
 	run("Subtract Background...", "rolling=5 stack");
@@ -134,30 +135,30 @@ function intensity_measurements(direcory_path, originalTitleWithoutExtension, du
 	setSlice(channelNumber);
 	run("Set Measurements...", "area mean standard modal min integrated median display redirect=None decimal=3");
 	roiManager("multi-measure");
-	saveAs("Results", direcory_path + File.separator + originalTitleWithoutExtension + "-Measurement_results.csv");
+	saveAs("Results", directory_path + File.separator + originalTitleWithoutExtension + "-Measurement_results.csv");
 	roiManager("Deselect");
 	roiManager("reset");
 	run("Clear Results");
 	print("Finished intensity measurements.");
 }
 
-function ramification_index_calculation(direcory_path, originalTitleWithoutExtension, duplicateTitle, minObjectSize, minCellSize){
+function ramification_index_calculation(directory_path, originalTitleWithoutExtension, duplicateTitle, minObjectSize, minCellSize){
 	print("Ramification index measurements.");
 	print("Identifying objects. This might take a little while. :) Check the status bar in the main Fiji window."); 
 	run("3D OC Options", "volume surface dots_size=5 font_size=10 show_numbers white_numbers store_results_within_a_table_named_after_the_image_(macro_friendly) redirect_to=none");
 	//run("3D Objects Counter", "threshold=128 slice=74 min.=" + minCellSize + " max.=Infinity objects statistics summary");
 	run("3D Objects Counter", "threshold=128 slice=74 min.=" + minCellSize + " max.=99999999999999999999 objects");
-	rename("labelled mask"); 
+	rename(labelled_mask); 
 	run("glasbey_on_dark");
-	
+
 	print("Generating convex hulls. This could take a long while... :( ............"); 
 	run("3D Manager Options", "volume surface convex_hull integrated_density mean_grey_value std_dev_grey_value mode_grey_value minimum_grey_value maximum_grey_value objects distance_between_centers=0 distance_max_contact=1.80 drawing=Contour");
-	selectWindow("labelled mask"); 
+	selectWindow(labelled_mask); 
+
 	run("3D Manager");
 	Ext.Manager3D_AddImage();
 	Ext.Manager3D_SelectAll();
 	Ext.Manager3D_Measure();
-	
 	
 /*	
 	// connected component analysis, i.e. identify objects and assign unique identifiers
@@ -165,7 +166,7 @@ function ramification_index_calculation(direcory_path, originalTitleWithoutExten
 	run("Analyze Particles...", "size=" + minCellSize + "-Infinity exclude display add");  //apply appropriate minimum size filter in µm^2
 	
 	//save ROI set for future reference and accountability purposes
-	roiManager("Save", direcory_path + File.separator + originalTitleWithoutExtension + "-cell-ROIs.zip");
+	roiManager("Save", directory_path + File.separator + originalTitleWithoutExtension + "-cell-ROIs.zip");
 	//specify which parameters to measure
 	run("Set Measurements...", "area redirect=None decimal=3");
 	
@@ -198,12 +199,20 @@ function ramification_index_calculation(direcory_path, originalTitleWithoutExten
 	
 	// save results with file name including original file name
 	selectWindow("Results");
-	saveAs("Results", direcory_path + File.separator + originalTitleWithoutExtension + "-Ramification_results.csv");
+	saveAs("Results", directory_path + File.separator + originalTitleWithoutExtension + "-Ramification_results.csv");
 	roiManager("reset");
 	roiManager("Deselect");
 	
 */
 	print("Finished ramification index calculation");
+}
+
+function visualisation(labelled_mask, originalTitleWithoutExtension, directory_path){
+	selectWindow(labelled_mask); 
+	run("3D Project...", "projection=[Mean Value] axis=Y-Axis slice=0.19 initial=0 total=360 rotation=10 lower=1 upper=255 opacity=0 surface=100 interior=50");
+	run("Animated Gif ... ", "name=[Projections of labelled] set_global_lookup_table_options=[Load from Current Image] optional=[] image=[No Disposal] set=125 number=0 transparency=[No Transparency] red=0 green=0 blue=0 index=0 filename=[" + directory_path + File.separator + originalTitleWithoutExtension + "3D-animation.gif]");
+	//run("Animated Gif ... ", "name=[Projections of labelled] set_global_lookup_table_options=[Load from Current Image] optional=[] image=[No Disposal] set=125 number=0 transparency=[No Transparency] red=0 green=0 blue=0 index=0 filename=[Y:/private/Marie/Image Analysis/2023-01-09-MICHAEL-Cord-circumf-perimeter-ratification-index/playground/filename.gif]");
+	print("Finished preprocesing and saved " + directory_path + File.separator + originalTitleWithoutExtension + "-mask.tif");
 }
 
 function clean_up(){
