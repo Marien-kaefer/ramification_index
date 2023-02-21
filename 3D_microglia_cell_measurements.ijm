@@ -18,7 +18,8 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 #@ String (label = "Channel to process", value = 2, persist=true) channelNumber
 #@ String (label = "Minimum cell size (micron^3) for ramification index calculation", value = 750, persist=true) minCellSize
-#@ String (label = "Minimum object size (micron^3) for intensity and area fraction measurement", value = 100, persist=true) minObjectSize
+#@ String(choices={"Threshold Algorithm Determination","Full Analysis"}, style="radioButtonHorizontal") analysis_selection
+#@ String (choices={"Li","Default", "Huang","Intermodes","IsoData","IJ_IsoData","MaxEntropy","Mean","MinError","Minimum","Moments","Otsu","Percentile","RenyiEntropy","Shanbhag","Triangle","Yen"}, style="listBox") threshold_algorithm
 
 start = getTime(); 
 
@@ -34,7 +35,7 @@ labelled_mask = "labelled mask";
 duplicateTitle = pre_processing(originalTitle, channelNumber, slices, directory_path, originalTitleWithoutExtension); 
 //area_fraction(directory_path, originalTitleWithoutExtension, duplicateTitle, minObjectSize);
 //intensity_measurements(directory_path, originalTitleWithoutExtension, duplicateTitle, channelNumber);
-ramification_index_calculation(directory_path, originalTitleWithoutExtension, duplicateTitle, minObjectSize, minCellSize); 
+ramification_index_calculation(directory_path, originalTitleWithoutExtension, duplicateTitle, minCellSize); 
 visualisation(labelled_mask, originalTitleWithoutExtension, directory_path);
 //clean_up();
 
@@ -62,15 +63,16 @@ function pre_processing(originalTitle, channelNumber, slices, directory_path, or
 	mask = "*None*";
 	fast = true;
 	process_as_composite = true;
+	selectWindow(duplicateTitle);
 	CLAHE_contrast_enhancement(blocksize, histogram_bins, maximum_slope, mask, fast, process_as_composite);
 	//run("Enhance Local Contrast (CLAHE)", "blocksize=90 histogram=127 maximum=3 mask=*None*");
-	
+	 
 	run("Median...", "radius=1 stack");
 	setSlice(slices/2); 
 	//run("Threshold...");
-	setAutoThreshold("Li dark no-reset");
+	setAutoThreshold(threshold_algorithm + " dark no-reset");
 	setOption("BlackBackground", true);
-	run("Convert to Mask", "method=Li background=Dark black create");
+	run("Convert to Mask", "method=" + threshold_algorithm + " background=Dark black create");
 	//run("Erode", "stack");
 	mask_title = getTitle();
 	saveAs("TIFF", directory_path + File.separator + originalTitleWithoutExtension + "-mask.tif");
@@ -114,105 +116,41 @@ function CLAHE_contrast_enhancement(blocksize, histogram_bins, maximum_slope, ma
 	}
 }
 
-
-function area_fraction(directory_path, originalTitleWithoutExtension, duplicateTitle, minObjectSize){
-	print("Area fraction measurement");
-	selectWindow(duplicateTitle);
-	run("Analyze Particles...", "size=" + minObjectSize + "-Infinity clear display summarize add");
-	//save ROI set for future reference and accountability purposes
-	roiManager("Save", directory_path + File.separator + originalTitleWithoutExtension + "-area-fraction-intensity-ROISet.zip");
-	selectWindow("Summary");
-	saveAs("Results", directory_path + File.separator + originalTitleWithoutExtension + "-Summary_results.csv");
-	close(originalTitleWithoutExtension + "-Summary_results.csv");
-	print("Finished area fraction"); 
-}
-
-function intensity_measurements(directory_path, originalTitleWithoutExtension, duplicateTitle, channelNumber){
-	print("Area fraction measurement");
-	selectWindow(originalTitle);
-	run("Subtract Background...", "rolling=5 stack");
-	run("Z Project...", "projection=[Sum Slices]");
-	setSlice(channelNumber);
-	run("Set Measurements...", "area mean standard modal min integrated median display redirect=None decimal=3");
-	roiManager("multi-measure");
-	saveAs("Results", directory_path + File.separator + originalTitleWithoutExtension + "-Measurement_results.csv");
-	roiManager("Deselect");
-	roiManager("reset");
-	run("Clear Results");
-	print("Finished intensity measurements.");
-}
-
-function ramification_index_calculation(directory_path, originalTitleWithoutExtension, duplicateTitle, minObjectSize, minCellSize){
+function ramification_index_calculation(directory_path, originalTitleWithoutExtension, duplicateTitle, minCellSize){
 	print("Ramification index measurements.");
 	print("Identifying objects. This might take a little while. :) Check the status bar in the main Fiji window."); 
+	/*
 	run("3D OC Options", "volume surface dots_size=5 font_size=10 show_numbers white_numbers store_results_within_a_table_named_after_the_image_(macro_friendly) redirect_to=none");
 	//run("3D Objects Counter", "threshold=128 slice=74 min.=" + minCellSize + " max.=Infinity objects statistics summary");
 	run("3D Objects Counter", "threshold=128 slice=74 min.=" + minCellSize + " max.=99999999999999999999 objects");
-	rename(labelled_mask); 
-	run("glasbey_on_dark");
-
-	print("Generating convex hulls. This could take a long while... :( ............"); 
-	run("3D Manager Options", "volume surface convex_hull integrated_density mean_grey_value std_dev_grey_value mode_grey_value minimum_grey_value maximum_grey_value objects distance_between_centers=0 distance_max_contact=1.80 drawing=Contour");
-	selectWindow(labelled_mask); 
-
-	run("3D Manager");
-	Ext.Manager3D_AddImage();
-	Ext.Manager3D_SelectAll();
-	Ext.Manager3D_Measure();
-	
-/*	
-	// connected component analysis, i.e. identify objects and assign unique identifiers
-	selectWindow(duplicateTitle);
-	run("Analyze Particles...", "size=" + minCellSize + "-Infinity exclude display add");  //apply appropriate minimum size filter in µm^2
-	
-	//save ROI set for future reference and accountability purposes
-	roiManager("Save", directory_path + File.separator + originalTitleWithoutExtension + "-cell-ROIs.zip");
-	//specify which parameters to measure
-	run("Set Measurements...", "area redirect=None decimal=3");
-	
-	// count number of ROIs and specify length of result lists
-	ROI_count = roiManager("count");
-	//print("number of ROIs: " + ROI_count); 
-	cell_area = newArray(ROI_count);
-	projection_area = newArray(ROI_count);
-	ramification_index = newArray(ROI_count);
-	
-	// loop through each ROI and measure the area then generate and measure the area of the convex hull, calculate the ramification index as cell area divided by convex hull area
-	for (i = 0; i < ROI_count; i++) {
-		roiManager("Select", i);
-		run("Measure");
-		cell_area[i] = getResult("Area", 0);
-		roiManager("Select", i);
-		run("Convex Hull");
-		run("Measure");
-		projection_area[i] = getResult("Area", 1);
-		run("Clear Results");
-		ramification_index[i] = cell_area[i] / projection_area[i]; 
-	}
-	
-	//write results into a new results window 
-	for (i = 0; i < ROI_count; i++) {
-		setResult("Object Area", i, cell_area[i]);
-		setResult("Object Projection Area", i, projection_area[i]);
-		setResult("Ramification Index", i, ramification_index[i]);  
-	}
-	
-	// save results with file name including original file name
-	selectWindow("Results");
-	saveAs("Results", directory_path + File.separator + originalTitleWithoutExtension + "-Ramification_results.csv");
-	roiManager("reset");
-	roiManager("Deselect");
+	rename(labelled_mask);
 	
 */
+
+	run("3D Manager Options", "volume surface convex_hull integrated_density mean_grey_value std_dev_grey_value mode_grey_value minimum_grey_value maximum_grey_value objects distance_between_centers=0 distance_max_contact=1.80 drawing=Contour");
+	run("3D Manager");
+	Ext.Manager3D_Segment(128, 255);
+	rename(labelled_mask);  
+	run("glasbey_on_dark");
+	
+	print("Generating convex hulls. This could take a long while... :( ............"); 
+	
+	if (analysis_selection == "Full Analysis") {
+		Ext.Manager3D_AddImage();
+		//?? ROICount = Ext.Manager3D_Count; ??
+		//print("ROI count: " + ROICount); 
+		Ext.Manager3D_Select(6);
+		Ext.Manager3D_Delete();
+		Ext.Manager3D_SelectAll();
+		Ext.Manager3D_Measure();
+	}
 	print("Finished ramification index calculation");
 }
 
 function visualisation(labelled_mask, originalTitleWithoutExtension, directory_path){
 	selectWindow(labelled_mask); 
 	run("3D Project...", "projection=[Mean Value] axis=Y-Axis slice=0.19 initial=0 total=360 rotation=10 lower=1 upper=255 opacity=0 surface=100 interior=50");
-	run("Animated Gif ... ", "name=[Projections of labelled] set_global_lookup_table_options=[Load from Current Image] optional=[] image=[No Disposal] set=125 number=0 transparency=[No Transparency] red=0 green=0 blue=0 index=0 filename=[" + directory_path + File.separator + originalTitleWithoutExtension + "3D-animation.gif]");
-	//run("Animated Gif ... ", "name=[Projections of labelled] set_global_lookup_table_options=[Load from Current Image] optional=[] image=[No Disposal] set=125 number=0 transparency=[No Transparency] red=0 green=0 blue=0 index=0 filename=[Y:/private/Marie/Image Analysis/2023-01-09-MICHAEL-Cord-circumf-perimeter-ratification-index/playground/filename.gif]");
-	print("Finished preprocesing and saved " + directory_path + File.separator + originalTitleWithoutExtension + "-mask.tif");
+	run("Animated Gif ... ", "name=[Projections of labelled] set_global_lookup_table_options=[Load from Current Image] optional=[] image=[No Disposal] set=125 number=0 transparency=[No Transparency] red=0 green=0 blue=0 index=0 filename=[" + directory_path + File.separator + originalTitleWithoutExtension + "-3D-animation.gif]");
 }
 
 function clean_up(){
