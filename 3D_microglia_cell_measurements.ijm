@@ -33,11 +33,9 @@ print(TimeStamp() + ": Processing file " + originalTitleWithoutExtension + " loc
 labelled_mask = "labelled mask"; 
 
 duplicateTitle = pre_processing(originalTitle, channelNumber, slices, directory_path, originalTitleWithoutExtension); 
-//area_fraction(directory_path, originalTitleWithoutExtension, duplicateTitle, minObjectSize);
-//intensity_measurements(directory_path, originalTitleWithoutExtension, duplicateTitle, channelNumber);
 ramification_index_calculation(directory_path, originalTitleWithoutExtension, duplicateTitle, minCellSize); 
 visualisation(labelled_mask, originalTitleWithoutExtension, directory_path);
-//clean_up();
+clean_up();
 
 //let user know the process has finished
 stop = getTime(); 
@@ -119,32 +117,24 @@ function CLAHE_contrast_enhancement(blocksize, histogram_bins, maximum_slope, ma
 function ramification_index_calculation(directory_path, originalTitleWithoutExtension, duplicateTitle, minCellSize){
 	print("Ramification index measurements.");
 	print("Identifying objects. This might take a little while. :) Check the status bar in the main Fiji window."); 
-	/*
-	run("3D OC Options", "volume surface dots_size=5 font_size=10 show_numbers white_numbers store_results_within_a_table_named_after_the_image_(macro_friendly) redirect_to=none");
-	//run("3D Objects Counter", "threshold=128 slice=74 min.=" + minCellSize + " max.=Infinity objects statistics summary");
-	run("3D Objects Counter", "threshold=128 slice=74 min.=" + minCellSize + " max.=99999999999999999999 objects");
-	rename(labelled_mask);
-	
-*/
 
 	run("3D Manager Options", "volume surface convex_hull integrated_density mean_grey_value std_dev_grey_value mode_grey_value minimum_grey_value maximum_grey_value objects distance_between_centers=0 distance_max_contact=1.80 drawing=Contour");
 	run("3D Manager");
-	Ext.Manager3D_Segment(128, 255);
-	rename(labelled_mask);  
+	run("3D Simple Segmentation", "low_threshold=128 min_size=" + minCellSize + " max_size=-1");
 	run("glasbey_on_dark");
-	
-	print("Generating convex hulls. This could take a long while... :( ............"); 
+	saveAs("TIFF", directory_path + File.separator + originalTitleWithoutExtension + "-labelled-mask.tif");
+	rename(labelled_mask); 
 	
 	if (analysis_selection == "Full Analysis") {
+		print("Generating convex hulls. This could take a long while... :( ............"); 	
 		Ext.Manager3D_AddImage();
-		//?? ROICount = Ext.Manager3D_Count; ??
-		//print("ROI count: " + ROICount); 
-		Ext.Manager3D_Select(6);
-		Ext.Manager3D_Delete();
 		Ext.Manager3D_SelectAll();
 		Ext.Manager3D_Measure();
+		Ext.Manager3D_SaveResult("M", directory_path + File.separator + originalTitleWithoutExtension +"-Results3D.csv"); // M is for (m)easure
+		Ext.Manager3D_CloseResult("M");
+		print("Finished ramification index calculation");
 	}
-	print("Finished ramification index calculation");
+
 }
 
 function visualisation(labelled_mask, originalTitleWithoutExtension, directory_path){
