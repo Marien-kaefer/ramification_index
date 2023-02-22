@@ -17,7 +17,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 */
 
 #@ String (label = "Channel to process", value = 2, persist=true) channelNumber
-#@ String (label = "Minimum cell size (micron^3) for ramification index calculation", value = 750, persist=true) minCellSize
+#@ String (label = "Minimum cell size (micron^3) for ramification index calculation", value = 20000, persist=true) minCellSize
 #@ String(choices={"Threshold Algorithm Determination","Full Analysis"}, style="radioButtonHorizontal") analysis_selection
 #@ String (choices={"Li","Default", "Huang","Intermodes","IsoData","IJ_IsoData","MaxEntropy","Mean","MinError","Minimum","Moments","Otsu","Percentile","RenyiEntropy","Shanbhag","Triangle","Yen"}, style="listBox") threshold_algorithm
 
@@ -118,15 +118,20 @@ function ramification_index_calculation(directory_path, originalTitleWithoutExte
 	print("Ramification index measurements.");
 	print("Identifying objects. This might take a little while. :) Check the status bar in the main Fiji window."); 
 
-	run("3D Manager Options", "volume surface convex_hull integrated_density mean_grey_value std_dev_grey_value mode_grey_value minimum_grey_value maximum_grey_value objects distance_between_centers=0 distance_max_contact=1.80 drawing=Contour");
+	run("3D Manager Options", "volume surface integrated_density mean_grey_value std_dev_grey_value mode_grey_value minimum_grey_value maximum_grey_value objects distance_between_centers=0 distance_max_contact=1.80 drawing=Contour");
 	run("3D Manager");
 	run("3D Simple Segmentation", "low_threshold=128 min_size=" + minCellSize + " max_size=-1");
 	run("glasbey_on_dark");
 	saveAs("TIFF", directory_path + File.separator + originalTitleWithoutExtension + "-labelled-mask.tif");
 	rename(labelled_mask); 
+	Ext.Manager3D_AddImage();
+	Ext.Manager3D_SelectAll();
+	Ext.Manager3D_Measure();
 	
 	if (analysis_selection == "Full Analysis") {
+		Ext.Manager3D_CloseResult("M");
 		print("Generating convex hulls. This could take a long while... :( ............"); 	
+		run("3D Manager Options", "volume surface convex_hull integrated_density mean_grey_value std_dev_grey_value mode_grey_value minimum_grey_value maximum_grey_value objects distance_between_centers=0 distance_max_contact=1.80 drawing=Contour");
 		Ext.Manager3D_AddImage();
 		Ext.Manager3D_SelectAll();
 		Ext.Manager3D_Measure();
@@ -146,7 +151,6 @@ function visualisation(labelled_mask, originalTitleWithoutExtension, directory_p
 function clean_up(){
 	//clean up: close results window, reset ROI Manager, close image window
 	run("Close");
-	roiManager("reset");
 	close("*"); 
 }
 
