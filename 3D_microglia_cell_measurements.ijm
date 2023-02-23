@@ -1,5 +1,5 @@
 /*
-Macro to identify fluorescently labelled objects within a tissue and measure intensity parameters, area fraction and ramification index of objects.
+Macro to identify fluorescently labelled objects within a tissue and measure intensity parameters, volume and convex hull volume. 
 
 												- Written by Marie Held [mheldb@liverpool.ac.uk] January 2023
 												  Liverpool CCI (https://cci.liverpool.ac.uk/)
@@ -17,14 +17,13 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 */
 
 #@ String (label = "Channel to process", value = 2, persist=true) channelNumber
-#@ String (label = "Minimum cell size (micron^3) for ramification index calculation", value = 20000, persist=true) minCellSize
+#@ String (label = "Minimum cell size (# of voxels) for ramification index calculation", value = 20000, persist=true) minCellSize
 #@ String(choices={"Threshold Algorithm Determination","Full Analysis"}, style="radioButtonHorizontal") analysis_selection
 #@ String (choices={"Li","Default", "Huang","Intermodes","IsoData","IJ_IsoData","MaxEntropy","Mean","MinError","Minimum","Moments","Otsu","Percentile","RenyiEntropy","Shanbhag","Triangle","Yen"}, style="listBox") threshold_algorithm
 
 start = getTime(); 
 
-
-// once the binary mask of a segmented image has been generated/opened, select it and hit [Run] at the bottom of the script editor. 
+// once the binary mask of a segmented image has been generated/opened, select it and hit [Run] at the bottom of the script editor. 
 originalTitle = getTitle(); //get image title
 getDimensions(width, height, channels, slices, frames);
 originalTitleWithoutExtension = file_name_remove_extension(originalTitle); //remove extension from image title
@@ -117,7 +116,6 @@ function CLAHE_contrast_enhancement(blocksize, histogram_bins, maximum_slope, ma
 function ramification_index_calculation(directory_path, originalTitleWithoutExtension, duplicateTitle, minCellSize){
 	print("Ramification index measurements.");
 	print("Identifying objects. This might take a little while. :) Check the status bar in the main Fiji window."); 
-
 	run("3D Manager Options", "volume surface integrated_density mean_grey_value std_dev_grey_value mode_grey_value minimum_grey_value maximum_grey_value objects distance_between_centers=0 distance_max_contact=1.80 drawing=Contour");
 	run("3D Manager");
 	run("3D Simple Segmentation", "low_threshold=128 min_size=" + minCellSize + " max_size=-1");
@@ -127,12 +125,10 @@ function ramification_index_calculation(directory_path, originalTitleWithoutExte
 	Ext.Manager3D_AddImage();
 	Ext.Manager3D_SelectAll();
 	Ext.Manager3D_Measure();
-	
 	if (analysis_selection == "Full Analysis") {
 		Ext.Manager3D_CloseResult("M");
 		print("Generating convex hulls. This could take a long while... :( ............"); 	
 		run("3D Manager Options", "volume surface convex_hull integrated_density mean_grey_value std_dev_grey_value mode_grey_value minimum_grey_value maximum_grey_value objects distance_between_centers=0 distance_max_contact=1.80 drawing=Contour");
-		Ext.Manager3D_AddImage();
 		Ext.Manager3D_SelectAll();
 		Ext.Manager3D_Measure();
 		Ext.Manager3D_SaveResult("M", directory_path + File.separator + originalTitleWithoutExtension +"-Results3D.csv"); // M is for (m)easure
@@ -142,14 +138,15 @@ function ramification_index_calculation(directory_path, originalTitleWithoutExte
 
 }
 
+//generate 3D rotation of all objects around the vertical axis and save as animated gif.
 function visualisation(labelled_mask, originalTitleWithoutExtension, directory_path){
 	selectWindow(labelled_mask); 
 	run("3D Project...", "projection=[Mean Value] axis=Y-Axis slice=0.19 initial=0 total=360 rotation=10 lower=1 upper=255 opacity=0 surface=100 interior=50");
 	run("Animated Gif ... ", "name=[Projections of labelled] set_global_lookup_table_options=[Load from Current Image] optional=[] image=[No Disposal] set=125 number=0 transparency=[No Transparency] red=0 green=0 blue=0 index=0 filename=[" + directory_path + File.separator + originalTitleWithoutExtension + "-3D-animation.gif]");
 }
 
+//clean up: close results window, close image window
 function clean_up(){
-	//clean up: close results window, reset ROI Manager, close image window
 	run("Close");
 	close("*"); 
 }
